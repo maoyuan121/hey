@@ -50,6 +50,7 @@ func newTemplate(output string) *template.Template {
 	case "csv":
 		outputTmpl = csvTmpl
 	}
+
 	return template.Must(template.New("tmpl").Funcs(tmplFuncMap).Parse(outputTmpl))
 }
 

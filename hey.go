@@ -110,7 +110,7 @@ func main() {
 		fmt.Fprint(os.Stderr, fmt.Sprintf(usage, runtime.NumCPU()))
 	}
 
-	dur, w := GetRequesterWork()
+	w := GetRequesterWork()
 	w.Init()
 
 	// 监听收到的信号
@@ -123,7 +123,7 @@ func main() {
 		w.Stop()
 	}()
 
-
+	dur := *z
 	// 设置了超时
 	if dur > 0 {
 		go func() {
@@ -134,7 +134,7 @@ func main() {
 	w.Run()
 }
 
-func GetRequesterWork() (time.Duration, *requester.Work) {
+func GetRequesterWork() (*requester.Work) {
 	var hs headerSlice
 	flag.Var(&hs, "H", "")
 	flag.Parse()
@@ -242,7 +242,7 @@ func GetRequesterWork() (time.Duration, *requester.Work) {
 		ProxyAddr:          proxyURL,
 		Output:             *output,
 	}
-	return dur, w
+	return w
 }
 
 func errAndExit(msg string) {
