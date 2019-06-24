@@ -39,6 +39,8 @@ const (
 )
 
 var (
+	hs headerSlice
+
 	// HTTP METHOD
 	m           = flag.String("m", "GET", "")
 	// HTTP HEADER
@@ -123,21 +125,55 @@ func main() {
 		w.Stop()
 	}()
 
+
+	// 设置了超时, 如果超时那么 stop
 	dur := *z
-	// 设置了超时
 	if dur > 0 {
 		go func() {
 			time.Sleep(dur)
 			w.Stop()
 		}()
 	}
+
+	// 运行
 	w.Run()
 }
 
+func getHttpHeader(userAgent string) http.Header {
+	// set content-type
+	header := make(http.Header)
+	header.Set("Content-Type", *contentType)
+	// set any other additional headers
+	if *headers != "" {
+		usageAndExit("Flag '-h' is deprecated, please use '-H' instead.")
+	}
+	// set any other additional repeatable headers
+	for _, h := range hs {
+		match, err := parseInputWithRegexp(h, headerRegexp)
+		if err != nil {
+			usageAndExit(err.Error())
+		}
+		header.Set(match[1], match[2])
+	}
+	if *accept != "" {
+		header.Set("Accept", *accept)
+	}
+	ua := userAgent
+	if ua == "" {
+		ua = heyUA
+	} else {
+		ua += " " + heyUA
+	}
+	header.Set("User-Agent", ua)
+
+	return header
+
+}
+
 func GetRequesterWork() (*requester.Work) {
-	var hs headerSlice
 	flag.Var(&hs, "H", "")
 	flag.Parse()
+	// 如果没有参数， 直接退出程序
 	if flag.NArg() < 1 {
 		usageAndExit("")
 	}
@@ -162,24 +198,7 @@ func GetRequesterWork() (*requester.Work) {
 	}
 	url := flag.Args()[0]
 	method := strings.ToUpper(*m)
-	// set content-type
-	header := make(http.Header)
-	header.Set("Content-Type", *contentType)
-	// set any other additional headers
-	if *headers != "" {
-		usageAndExit("Flag '-h' is deprecated, please use '-H' instead.")
-	}
-	// set any other additional repeatable headers
-	for _, h := range hs {
-		match, err := parseInputWithRegexp(h, headerRegexp)
-		if err != nil {
-			usageAndExit(err.Error())
-		}
-		header.Set(match[1], match[2])
-	}
-	if *accept != "" {
-		header.Set("Accept", *accept)
-	}
+
 	// set basic auth if set
 	var username, password string
 	if *authHeader != "" {
@@ -220,14 +239,9 @@ func GetRequesterWork() (*requester.Work) {
 	if *hostHeader != "" {
 		req.Host = *hostHeader
 	}
-	ua := req.UserAgent()
-	if ua == "" {
-		ua = heyUA
-	} else {
-		ua += " " + heyUA
-	}
-	header.Set("User-Agent", ua)
-	req.Header = header
+
+
+	req.Header = getHttpHeader(req.UserAgent())
 	w := &requester.Work{
 		Request:            req,
 		RequestBody:        bodyAll,
@@ -245,12 +259,14 @@ func GetRequesterWork() (*requester.Work) {
 	return w
 }
 
+// 打印错误消息，并且退出
 func errAndExit(msg string) {
 	fmt.Fprintf(os.Stderr, msg)
 	fmt.Fprintf(os.Stderr, "\n")
 	os.Exit(1)
 }
 
+// 和 errAndExit 类似，只不过多了个 flag.Usage()
 func usageAndExit(msg string) {
 	if msg != "" {
 		fmt.Fprintf(os.Stderr, msg)
