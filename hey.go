@@ -39,15 +39,18 @@ const (
 )
 
 var (
+	// HTTP METHOD
 	m           = flag.String("m", "GET", "")
+	// HTTP HEADER
 	headers     = flag.String("h", "", "")
+	// HTTP BODY
 	body        = flag.String("d", "", "")
 	bodyFile    = flag.String("D", "", "")
 	accept      = flag.String("A", "", "")
 	contentType = flag.String("T", "text/html", "")
+	// HTTP AUTHORIZATION
 	authHeader  = flag.String("a", "", "")
 	hostHeader  = flag.String("host", "", "")
-
 	output = flag.String("o", "", "")
 
 	c = flag.Int("c", 50, "")
@@ -102,24 +105,47 @@ Options:
 `
 
 func main() {
+	// 打印帮助
 	flag.Usage = func() {
 		fmt.Fprint(os.Stderr, fmt.Sprintf(usage, runtime.NumCPU()))
 	}
 
+	dur, w := GetRequesterWork()
+	w.Init()
+
+	// 监听收到的信号
+	// os.Interrupt 表示中断
+	// os.Kill 杀死退出进程
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		w.Stop()
+	}()
+
+
+	// 设置了超时
+	if dur > 0 {
+		go func() {
+			time.Sleep(dur)
+			w.Stop()
+		}()
+	}
+	w.Run()
+}
+
+func GetRequesterWork() (time.Duration, *requester.Work) {
 	var hs headerSlice
 	flag.Var(&hs, "H", "")
-
 	flag.Parse()
 	if flag.NArg() < 1 {
 		usageAndExit("")
 	}
-
 	runtime.GOMAXPROCS(*cpus)
 	num := *n
 	conc := *c
 	q := *q
 	dur := *z
-
 	if dur > 0 {
 		num = math.MaxInt32
 		if conc <= 0 {
@@ -134,10 +160,8 @@ func main() {
 			usageAndExit("-n cannot be less than -c.")
 		}
 	}
-
 	url := flag.Args()[0]
 	method := strings.ToUpper(*m)
-
 	// set content-type
 	header := make(http.Header)
 	header.Set("Content-Type", *contentType)
@@ -153,11 +177,9 @@ func main() {
 		}
 		header.Set(match[1], match[2])
 	}
-
 	if *accept != "" {
 		header.Set("Accept", *accept)
 	}
-
 	// set basic auth if set
 	var username, password string
 	if *authHeader != "" {
@@ -167,7 +189,6 @@ func main() {
 		}
 		username, password = match[1], match[2]
 	}
-
 	var bodyAll []byte
 	if *body != "" {
 		bodyAll = []byte(*body)
@@ -179,7 +200,6 @@ func main() {
 		}
 		bodyAll = slurp
 	}
-
 	var proxyURL *gourl.URL
 	if *proxyAddr != "" {
 		var err error
@@ -188,7 +208,6 @@ func main() {
 			usageAndExit(err.Error())
 		}
 	}
-
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		usageAndExit(err.Error())
@@ -197,12 +216,10 @@ func main() {
 	if username != "" || password != "" {
 		req.SetBasicAuth(username, password)
 	}
-
 	// set host header if set
 	if *hostHeader != "" {
 		req.Host = *hostHeader
 	}
-
 	ua := req.UserAgent()
 	if ua == "" {
 		ua = heyUA
@@ -211,7 +228,6 @@ func main() {
 	}
 	header.Set("User-Agent", ua)
 	req.Header = header
-
 	w := &requester.Work{
 		Request:            req,
 		RequestBody:        bodyAll,
@@ -226,21 +242,7 @@ func main() {
 		ProxyAddr:          proxyURL,
 		Output:             *output,
 	}
-	w.Init()
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	go func() {
-		<-c
-		w.Stop()
-	}()
-	if dur > 0 {
-		go func() {
-			time.Sleep(dur)
-			w.Stop()
-		}()
-	}
-	w.Run()
+	return dur, w
 }
 
 func errAndExit(msg string) {

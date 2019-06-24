@@ -63,8 +63,10 @@ type report struct {
 	w io.Writer
 }
 
+// n 是请求次数
 func newReport(w io.Writer, results chan *result, output string, n int) *report {
 	cap := min(n, maxRes)
+
 	return &report{
 		output:      output,
 		results:     results,

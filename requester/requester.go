@@ -34,9 +34,10 @@ import (
 const maxResult = 1000000
 const maxIdleConn = 500
 
+// 测试结果
 type result struct {
-	err           error
-	statusCode    int
+	err           error // 错误
+	statusCode    int   // 状态码
 	offset        time.Duration
 	duration      time.Duration
 	connDuration  time.Duration // connection setup(DNS lookup + Dial up) duration
@@ -44,7 +45,7 @@ type result struct {
 	reqDuration   time.Duration // request "write" duration
 	resDuration   time.Duration // response "read" duration
 	delayDuration time.Duration // delay between response and request
-	contentLength int64
+	contentLength int64         // 响应内容长度
 }
 
 type Work struct {
@@ -53,22 +54,22 @@ type Work struct {
 
 	RequestBody []byte
 
-	// N is the total number of requests to make.
+	// N 表示请求总是
 	N int
 
-	// C is the concurrency level, the number of concurrent workers to run.
+	// C 表示并发数
 	C int
 
-	// H2 is an option to make HTTP/2 requests
+	// H2 表示是否是 HTTP/2 请求
 	H2 bool
 
-	// Timeout in seconds.
+	// 多少秒超时
 	Timeout int
 
-	// Qps is the rate limit in queries per second.
+	// 1 秒限制多少个请求
 	QPS float64
 
-	// DisableCompression is an option to disable compression in response
+	// 是否禁用压缩
 	DisableCompression bool
 
 	// DisableKeepAlives is an option to prevents re-use of TCP connections between different HTTP requests
@@ -88,6 +89,7 @@ type Work struct {
 	// Writer is where results will be written. If nil, results are written to stdout.
 	Writer io.Writer
 
+	// 用来确保只运行一次
 	initOnce sync.Once
 	results  chan *result
 	stopCh   chan struct{}
@@ -96,6 +98,7 @@ type Work struct {
 	report *report
 }
 
+// 结果输出到哪里？ 默认输出到控制台
 func (b *Work) writer() io.Writer {
 	if b.Writer == nil {
 		return os.Stdout
@@ -105,9 +108,10 @@ func (b *Work) writer() io.Writer {
 
 // Init initializes internal data-structures
 func (b *Work) Init() {
+	// syncOnce 保证函数只运行一次
 	b.initOnce.Do(func() {
 		b.results = make(chan *result, min(b.C*1000, maxResult))
-		b.stopCh = make(chan struct{}, b.C)
+		b.stopCh = make(chan struct{}, b.C) // 停止 chan 是每个并发对应一个
 	})
 }
 
@@ -125,13 +129,15 @@ func (b *Work) Run() {
 	b.Finish()
 }
 
+// 停止所有请求, 发送 stop signal 给每个并发
 func (b *Work) Stop() {
-	// Send stop signal so that workers can stop gracefully.
+	// 发送 stop signal 给所有的 workers
 	for i := 0; i < b.C; i++ {
-		b.stopCh <- struct{}{}
+		b.stopCh <- struct{}{} // stopCh chan struct{}
 	}
 }
 
+// 结束请求 （会等待 b.report.done chan）
 func (b *Work) Finish() {
 	close(b.results)
 	total := now() - b.start
@@ -256,20 +262,23 @@ func (b *Work) runWorkers() {
 // cloneRequest returns a clone of the provided *http.Request.
 // The clone is a shallow copy of the struct and its Header map.
 func cloneRequest(r *http.Request, body []byte) *http.Request {
-	// shallow copy of the struct
+	// struct 浅拷贝
 	r2 := new(http.Request)
 	*r2 = *r
-	// deep copy of the Header
+
+	// 深拷贝 Header
 	r2.Header = make(http.Header, len(r.Header))
 	for k, s := range r.Header {
 		r2.Header[k] = append([]string(nil), s...)
 	}
+
 	if len(body) > 0 {
 		r2.Body = ioutil.NopCloser(bytes.NewReader(body))
 	}
 	return r2
 }
 
+// 返回 a, b 中值最小的值
 func min(a, b int) int {
 	if a < b {
 		return a
