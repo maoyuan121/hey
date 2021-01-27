@@ -1,17 +1,3 @@
-// Copyright 2014 Google Inc. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 // Package requester provides commands to run load tests and display results.
 package requester
 
@@ -41,9 +27,9 @@ type result struct {
 	offset        time.Duration
 	duration      time.Duration
 	connDuration  time.Duration // connection setup(DNS lookup + Dial up) duration
-	dnsDuration   time.Duration // dns lookup duration
-	reqDuration   time.Duration // request "write" duration
-	resDuration   time.Duration // response "read" duration
+	dnsDuration   time.Duration // dns 查找时间 dns lookup duration
+	reqDuration   time.Duration // 请求的写时间 request "write" duration
+	resDuration   time.Duration // 响应的读时间
 	delayDuration time.Duration // delay between response and request
 	contentLength int64         // 响应内容长度
 }
@@ -52,9 +38,10 @@ type Work struct {
 	// Request is the request to be made.
 	Request *http.Request
 
+	// 请求体
 	RequestBody []byte
 
-	// N 表示请求总是
+	// N 表示请求总数
 	N int
 
 	// C 表示并发数
@@ -66,36 +53,32 @@ type Work struct {
 	// 多少秒超时
 	Timeout int
 
-	// 1 秒限制多少个请求
+	// 1 秒限制多少个请求  Query Per Second
 	QPS float64
 
 	// 是否禁用压缩
 	DisableCompression bool
 
-	// DisableKeepAlives is an option to prevents re-use of TCP connections between different HTTP requests
+	// DisableKeepAlives 表示阻止重用 TCP 连接
 	DisableKeepAlives bool
 
-	// DisableRedirects is an option to prevent the following of HTTP redirects
+	// DisableRedirects 表示禁止 http 重定向
 	DisableRedirects bool
 
-	// Output represents the output type. If "csv" is provided, the
-	// output will be dumped as a csv stream.
+	// Output 代表输出类型。如果值为 csv，那么将输出到 csv 流。
 	Output string
 
-	// ProxyAddr is the address of HTTP proxy server in the format on "host:port".
-	// Optional.
+	// 代理地址。格式为 "host:port"。可选
 	ProxyAddr *url.URL
 
-	// Writer is where results will be written. If nil, results are written to stdout.
+	// Writer 表示结果输出到哪里。如果为 nil，那么输出到 stdout
 	Writer io.Writer
 
-	// 用来确保只运行一次
-	initOnce sync.Once
-	results  chan *result
-	stopCh   chan struct{}
-	start    time.Duration
-
-	report *report
+	initOnce sync.Once     // 用来确保只运行一次
+	results  chan *result  // 测试结果 chan
+	stopCh   chan struct{} // stop chan
+	start    time.Duration // 开始时间
+	report   *report       // 测试报告
 }
 
 // 结果输出到哪里？ 默认输出到控制台
@@ -106,7 +89,9 @@ func (b *Work) writer() io.Writer {
 	return b.Writer
 }
 
-// Init initializes internal data-structures
+// 初始化内部数据结构
+// 初始化 stopCh chan
+// 初始化 results chan
 func (b *Work) Init() {
 	// syncOnce 保证函数只运行一次
 	b.initOnce.Do(func() {
@@ -115,8 +100,7 @@ func (b *Work) Init() {
 	})
 }
 
-// Run makes all the requests, prints the summary. It blocks until
-// all work is done.
+// 运行所有的请求，打印 summary。会阻塞直至所有的 work 都完成
 func (b *Work) Run() {
 	b.Init()
 	b.start = now()
@@ -137,7 +121,11 @@ func (b *Work) Stop() {
 	}
 }
 
-// 结束请求 （会等待 b.report.done chan）
+// 结束请求
+// 关闭 results chan
+// 计算总耗时
+// 等待 b.report.done chan
+// 打印报告
 func (b *Work) Finish() {
 	close(b.results)
 	total := now() - b.start
@@ -146,6 +134,7 @@ func (b *Work) Finish() {
 	b.report.finalize(total)
 }
 
+// 发起请求
 func (b *Work) makeRequest(c *http.Client) {
 	s := now()
 	var size int64
@@ -203,6 +192,8 @@ func (b *Work) makeRequest(c *http.Client) {
 	}
 }
 
+// 运行 worker
+// n = 一个 goroutine 跑多少次请求
 func (b *Work) runWorker(client *http.Client, n int) {
 	var throttle <-chan time.Time
 	if b.QPS > 0 {
@@ -230,7 +221,7 @@ func (b *Work) runWorker(client *http.Client, n int) {
 
 func (b *Work) runWorkers() {
 	var wg sync.WaitGroup
-	wg.Add(b.C)
+	wg.Add(b.C) // b.c 是并发量
 
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
@@ -242,7 +233,7 @@ func (b *Work) runWorkers() {
 		DisableKeepAlives:   b.DisableKeepAlives,
 		Proxy:               http.ProxyURL(b.ProxyAddr),
 	}
-	if b.H2 {
+	if b.H2 { // 发起 Http 2 请求
 		http2.ConfigureTransport(tr)
 	} else {
 		tr.TLSNextProto = make(map[string]func(string, *tls.Conn) http.RoundTripper)
@@ -259,8 +250,7 @@ func (b *Work) runWorkers() {
 	wg.Wait()
 }
 
-// cloneRequest returns a clone of the provided *http.Request.
-// The clone is a shallow copy of the struct and its Header map.
+// 根据入参 http.Request 复制一个 http.Request
 func cloneRequest(r *http.Request, body []byte) *http.Request {
 	// struct 浅拷贝
 	r2 := new(http.Request)

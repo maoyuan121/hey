@@ -1,17 +1,3 @@
-// Copyright 2014 Google Inc. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 // Command hey is an HTTP load generator.
 package main
 
@@ -42,18 +28,18 @@ var (
 	hs headerSlice
 
 	// HTTP METHOD
-	m           = flag.String("m", "GET", "")
+	m = flag.String("m", "GET", "")
 	// HTTP HEADER
-	headers     = flag.String("h", "", "")
+	headers = flag.String("h", "", "")
 	// HTTP BODY
 	body        = flag.String("d", "", "")
 	bodyFile    = flag.String("D", "", "")
 	accept      = flag.String("A", "", "")
 	contentType = flag.String("T", "text/html", "")
 	// HTTP AUTHORIZATION
-	authHeader  = flag.String("a", "", "")
-	hostHeader  = flag.String("host", "", "")
-	output = flag.String("o", "", "")
+	authHeader = flag.String("a", "", "")
+	hostHeader = flag.String("host", "", "")
+	output     = flag.String("o", "", "")
 
 	c = flag.Int("c", 50, "")
 	n = flag.Int("n", 200, "")
@@ -125,7 +111,6 @@ func main() {
 		w.Stop()
 	}()
 
-
 	// 设置了超时, 如果超时那么 stop
 	dur := *z
 	if dur > 0 {
@@ -170,7 +155,7 @@ func getHttpHeader(userAgent string) http.Header {
 
 }
 
-func GetRequesterWork() (*requester.Work) {
+func GetRequesterWork() *requester.Work {
 	flag.Var(&hs, "H", "")
 	flag.Parse()
 	// 如果没有参数， 直接退出程序
@@ -239,7 +224,6 @@ func GetRequesterWork() (*requester.Work) {
 	if *hostHeader != "" {
 		req.Host = *hostHeader
 	}
-
 
 	req.Header = getHttpHeader(req.UserAgent())
 	w := &requester.Work{

@@ -1,17 +1,3 @@
-// Copyright 2014 Google Inc. All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package requester
 
 import (
@@ -38,7 +24,7 @@ type report struct {
 	rps      float64
 
 	avgConn     float64
-	avgDNS      float64
+	avgDNS      float64 // dns 平均查找时间
 	avgReq      float64
 	avgRes      float64
 	avgDelay    float64
@@ -51,13 +37,13 @@ type report struct {
 	statusCodes []int
 
 	results chan *result
-	done    chan bool
+	done    chan bool // 报告结束 chan
 	total   time.Duration
 
 	errorDist map[string]int
 	lats      []float64
 	sizeTotal int64
-	numRes    int64
+	numRes    int64 // 结果总数量
 	output    string
 
 	w io.Writer
@@ -83,6 +69,8 @@ func newReport(w io.Writer, results chan *result, output string, n int) *report 
 	}
 }
 
+// 遍历 results chan，算结果直至其关闭，
+// 并标识报告的 done chan 完成
 func runReporter(r *report) {
 	// Loop will continue until channel is closed
 	for res := range r.results {
@@ -115,6 +103,7 @@ func runReporter(r *report) {
 	r.done <- true
 }
 
+// 结束报告
 func (r *report) finalize(total time.Duration) {
 	r.total = total
 	r.rps = float64(r.numRes) / r.total.Seconds()
